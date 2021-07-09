@@ -1,14 +1,16 @@
+mod color;
 mod image;
 
 pub use fontdue::Font;
 use std::fs;
 
+pub use color::Color;
 use image::{Colors, Image};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Settings {
-    pub text_color: (u8, u8, u8),
-    pub background_color: (u8, u8, u8),
+    pub text_color: Color,
+    pub background_color: Color,
     pub draw_baseline: bool,
     pub draw_glyph_outline: bool,
     pub draw_sentence_outline: bool,
@@ -16,6 +18,11 @@ pub struct Settings {
 
 pub fn get_font() -> Font {
     let font_data = include_bytes!("../Cabin-Regular.ttf");
+    Font::from_bytes(font_data.as_ref(), Default::default()).expect("Failed to parse font")
+}
+
+pub fn get_font_italic() -> Font {
+    let font_data = include_bytes!("../Cabin-Italic-VariableFont_wdth,wght.ttf");
     Font::from_bytes(font_data.as_ref(), Default::default()).expect("Failed to parse font")
 }
 
@@ -98,7 +105,7 @@ pub fn do_sentence(font: &Font, sentence: &str, settings: Settings) -> Image {
             border_width,
             border_width + (layout.height - layout.baseline_offset),
             layout.width,
-            (255, 0, 0),
+            (255, 0, 0).into(),
         );
     }
 
@@ -108,7 +115,7 @@ pub fn do_sentence(font: &Font, sentence: &str, settings: Settings) -> Image {
             border_width - 1,
             layout.width + 2,
             layout.height + 2,
-            (0, 0, 255),
+            (0, 0, 255).into(),
         );
     }
 
@@ -117,15 +124,18 @@ pub fn do_sentence(font: &Font, sentence: &str, settings: Settings) -> Image {
         y += border_width as isize;
 
         img.draw_img(
-            Image::from_buffer(width, height, raster, Colors::Grey),
+            Image::from_buffer(
+                width,
+                height,
+                raster,
+                Colors::GreyAsAlpha(settings.text_color),
+            ),
             x,
             y,
-            true,
-            settings.text_color,
         );
 
         if settings.draw_glyph_outline {
-            img.rect(x as usize, y as usize, width, height, (0, 255, 0));
+            img.rect(x as usize, y as usize, width, height, (0, 255, 0).into());
         }
     }
 
