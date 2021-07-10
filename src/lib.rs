@@ -9,6 +9,8 @@ use image::{Colors, Image};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Settings {
+    pub font_size: f32,
+    pub padding: usize,
     pub text_color: Color,
     pub background_color: Color,
     pub draw_baseline: bool,
@@ -91,9 +93,8 @@ fn get_layout(font: &Font, size_px: f32, sentence: &str) -> Layout {
 }
 
 pub fn do_sentence(font: &Font, sentence: &str, settings: Settings) -> Image {
-    let px = 128.0;
-    let border_width = px as usize / 4;
-    let layout = get_layout(font, px, sentence);
+    let border_width = settings.padding;
+    let layout = get_layout(font, settings.font_size, sentence);
 
     let img_width = layout.width + (border_width * 2);
     let img_height = layout.height + (border_width * 2);

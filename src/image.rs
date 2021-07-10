@@ -155,7 +155,7 @@ impl Image {
             self.data[index] = color.r;
             self.data[index + 1] = color.g;
             self.data[index + 2] = color.b;
-            self.data[index + 2] = color.a;
+            self.data[index + 3] = color.a;
         }
     }
 
@@ -167,7 +167,7 @@ impl Image {
             self.data[index] = color.r;
             self.data[index + 1] = color.g;
             self.data[index + 2] = color.b;
-            self.data[index + 2] = color.a;
+            self.data[index + 3] = color.a;
         }
     }
 
