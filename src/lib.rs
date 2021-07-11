@@ -23,10 +23,20 @@ pub fn get_font() -> Font {
     Font::from_bytes(font_data.as_ref(), Default::default()).expect("Failed to parse font")
 }
 
+pub fn parse_font(data: &[u8]) -> Font {
+    Font::from_bytes(data, Default::default()).expect("Failed to parse font")
+}
+/*
 pub fn get_font_italic() -> Font {
-    let font_data = include_bytes!("../Cabin-Italic-VariableFont_wdth,wght.ttf");
+    let font_data = include_bytes!("../Cabin-Italic.ttf");
     Font::from_bytes(font_data.as_ref(), Default::default()).expect("Failed to parse font")
 }
+
+pub fn get_font_bold() -> Font {
+    let font_data = include_bytes!("../Cabin-Bold.ttf");
+    Font::from_bytes(font_data.as_ref(), Default::default()).expect("Failed to parse font")
+}
+*/
 
 struct Layout {
     pub glyphs: Vec<(isize, isize, usize, usize, Vec<u8>)>,
