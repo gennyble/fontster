@@ -18,12 +18,19 @@ struct Line {
     // A recommended space between the lines.
     // A font-recommended gap between the last lines descent and the next lines ascent.
     gap: f32,
-    // The highest a glyph extends above the baseline
+    // The highest a glyph extends above the baseline, typically positive
     ascent: f32,
-    // The lowest a glyph descends below the baseline
+    // The lowest a glyph descends below the baseline, typically negative
     descent: f32,
 
     glyphs: Vec<GlyphPosition>,
+}
+
+impl Line {
+    /// The height of this line including any gap
+    pub fn height(&self) -> f32 {
+        self.ascent - self.descent + self.gap
+    }
 }
 
 #[derive(Debug, Default)]
@@ -41,9 +48,7 @@ impl Layout {
 
     pub fn append(&mut self, font: &Font, font_size: f32, text: &str) {
         for ch in text.chars() {
-            println!("{}", ch);
             if ch == '\n' {
-                println!("starting new line");
                 // Start a new line if we're told to
                 self.lines.push(Line::default());
                 continue;
@@ -61,7 +66,12 @@ impl Layout {
             // Set our line metrics to the max of any font used on that line
             line.gap = line.gap.max(line_metrics.line_gap);
             line.ascent = line.ascent.max(line_metrics.ascent);
-            line.descent = line.descent.max(line_metrics.descent);
+            line.descent = line.descent.min(line_metrics.descent);
+
+            let kern = match line.glyphs.last() {
+                Some(last) => font.horizontal_kern(last.c, ch, font_size).unwrap_or(0.0),
+                None => 0.0,
+            };
 
             // NOTE:
             // See how we're setting the y value to metrics.ymin? That's the
@@ -71,7 +81,7 @@ impl Layout {
             // which would mess everything up.
             line.glyphs.push(GlyphPosition {
                 c: ch,
-                x: line.width,
+                x: line.width + kern,
                 y: metrics.ymin as f32,
                 width: metrics.width,
                 height: metrics.height,
@@ -93,7 +103,7 @@ impl Layout {
     pub fn height(&self) -> f32 {
         let mut height = 0.0;
         for line in &self.lines {
-            height += line.ascent + line.descent + line.gap;
+            height += line.height();
         }
 
         height
@@ -109,11 +119,11 @@ impl Layout {
             for mut glyph in line.glyphs {
                 // calculate the top-left corner y value of the glyph and then
                 // move it to the baseline
-                glyph.y = (glyph.y * -1.0 - glyph.height as f32) + baseline;
+                glyph.y = glyph.y * -1.0 + baseline - glyph.height as f32;
                 ret.push(glyph);
             }
 
-            baseline += line.descent + line.gap;
+            baseline += -line.descent + line.gap;
         }
 
         ret
