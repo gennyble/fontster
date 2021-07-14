@@ -1,154 +1,29 @@
-mod color;
-mod image;
+mod layout;
 
 pub use fontdue::Font;
-use std::fs;
+pub use layout::{GlyphPosition, Layout};
 
-pub use color::Color;
-use image::{Colors, Image};
+use std::{fs::File, io::Read};
+use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Settings {
-    pub font_size: f32,
-    pub padding: usize,
-    pub text_color: Color,
-    pub background_color: Color,
-    pub draw_baseline: bool,
-    pub draw_glyph_outline: bool,
-    pub draw_sentence_outline: bool,
+/// Attempt to open the file at the given path and parse it as a font.
+pub fn parse_font_file<P: AsRef<str>>(path: P) -> Result<Font, FontParseError> {
+    let mut file = File::open(path.as_ref())?;
+    let mut buffer = vec![];
+    file.read_to_end(&mut buffer)?;
+
+    parse_font(&buffer)
 }
 
-pub fn get_font() -> Font {
-    let font_data = include_bytes!("../Cabin-Regular.ttf");
-    Font::from_bytes(font_data.as_ref(), Default::default()).expect("Failed to parse font")
+/// Attempt to parse the given data as a font
+pub fn parse_font(data: &[u8]) -> Result<Font, FontParseError> {
+    Font::from_bytes(data, Default::default()).map_err(|s| FontParseError::ParseError(s))
 }
 
-pub fn parse_font(data: &[u8]) -> Font {
-    Font::from_bytes(data, Default::default()).expect("Failed to parse font")
-}
-/*
-pub fn get_font_italic() -> Font {
-    let font_data = include_bytes!("../Cabin-Italic.ttf");
-    Font::from_bytes(font_data.as_ref(), Default::default()).expect("Failed to parse font")
-}
-
-pub fn get_font_bold() -> Font {
-    let font_data = include_bytes!("../Cabin-Bold.ttf");
-    Font::from_bytes(font_data.as_ref(), Default::default()).expect("Failed to parse font")
-}
-*/
-
-struct Layout {
-    pub glyphs: Vec<(isize, isize, usize, usize, Vec<u8>)>,
-    pub width: usize,
-    pub height: usize,
-    pub baseline_offset: usize,
-}
-
-fn get_layout(font: &Font, size_px: f32, sentence: &str) -> Layout {
-    let mut width = 0.0;
-    let mut height = 0;
-    let mut baseline_bottom_offset = 0;
-
-    for ch in sentence.chars() {
-        let metrics = font.metrics(ch, size_px);
-        width += metrics.advance_width;
-
-        if metrics.ymin >= 0 {
-            let needed_height = metrics.height + metrics.ymin as usize;
-
-            if height < needed_height {
-                height = needed_height;
-            }
-        } else {
-            let above_baseline = metrics.height - metrics.ymin.abs() as usize;
-            let below_baseline = metrics.ymin.abs() as usize;
-
-            if baseline_bottom_offset < below_baseline {
-                // Add the difference in baselines
-                height += below_baseline - baseline_bottom_offset;
-                // Set the new baseline
-                baseline_bottom_offset = below_baseline
-            }
-
-            if (height - baseline_bottom_offset) < above_baseline {
-                height = above_baseline + baseline_bottom_offset;
-            }
-        }
-    }
-
-    let mut glyphs = Vec::with_capacity(sentence.len());
-    let mut x_offset = 0.0;
-    for ch in sentence.chars() {
-        let (metrics, raster) = font.rasterize(ch, size_px);
-
-        glyphs.push((
-            metrics.xmin as isize + x_offset as isize,
-            (height as isize - metrics.height as isize) + (metrics.ymin as isize * -1)
-                - baseline_bottom_offset as isize,
-            metrics.width,
-            metrics.height,
-            raster,
-        ));
-
-        x_offset += metrics.advance_width;
-    }
-
-    Layout {
-        glyphs,
-        width: width as usize, // Cast to usize now to avod compounding truncationd
-        height,
-        baseline_offset: baseline_bottom_offset,
-    }
-}
-
-pub fn do_sentence(font: &Font, sentence: &str, settings: Settings) -> Image {
-    let border_width = settings.padding;
-    let layout = get_layout(font, settings.font_size, sentence);
-
-    let img_width = layout.width + (border_width * 2);
-    let img_height = layout.height + (border_width * 2);
-
-    let mut img = Image::with_color(img_width, img_height, settings.background_color);
-
-    if settings.draw_baseline {
-        img.horizontal_line(
-            border_width,
-            border_width + (layout.height - layout.baseline_offset),
-            layout.width,
-            (255, 0, 0).into(),
-        );
-    }
-
-    if settings.draw_sentence_outline {
-        img.rect(
-            border_width - 1,
-            border_width - 1,
-            layout.width + 2,
-            layout.height + 2,
-            (0, 0, 255).into(),
-        );
-    }
-
-    for (mut x, mut y, width, height, raster) in layout.glyphs {
-        x += border_width as isize;
-        y += border_width as isize;
-
-        img.draw_img(
-            Image::from_buffer(
-                width,
-                height,
-                raster,
-                Colors::GreyAsAlpha(settings.text_color),
-            ),
-            x,
-            y,
-        );
-
-        if settings.draw_glyph_outline {
-            img.rect(x as usize, y as usize, width, height, (0, 255, 0).into());
-        }
-    }
-
-    img
+#[derive(Debug, Error)]
+pub enum FontParseError {
+    #[error("failed to open font file")]
+    FileError(#[from] std::io::Error),
+    #[error("failed to parse font data: {0}")]
+    ParseError(&'static str),
 }
