@@ -9,6 +9,24 @@ pub struct GlyphPosition {
     pub height: usize,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LayoutSettings {
+    pub horizontal_align: HorizontalAlign,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum HorizontalAlign {
+    Left,
+    Center,
+    Right,
+}
+
+impl Default for HorizontalAlign {
+    fn default() -> Self {
+        HorizontalAlign::Left
+    }
+}
+
 /// A line of text. All glyph positions are relative to the line until
 /// Layout::glyphs
 #[derive(Debug, Default)]
@@ -35,14 +53,15 @@ impl Line {
 
 #[derive(Debug, Default)]
 pub struct Layout {
+    settings: LayoutSettings,
     lines: Vec<Line>,
 }
 
 impl Layout {
-    pub fn new() -> Self {
+    pub fn new(settings: LayoutSettings) -> Self {
         Self {
+            settings,
             lines: vec![Line::default()],
-            ..Default::default()
         }
     }
 
@@ -111,12 +130,21 @@ impl Layout {
 
     pub fn glyphs(self) -> Vec<GlyphPosition> {
         let mut ret = vec![];
+        let settings = self.settings;
+        let width = self.width();
 
         let mut baseline = 0.0;
         for line in self.lines {
             baseline += line.ascent;
 
+            let x_offset = match settings.horizontal_align {
+                HorizontalAlign::Left => 0.0,
+                HorizontalAlign::Center => (width - line.width) / 2.0,
+                HorizontalAlign::Right => width - line.width,
+            };
+
             for mut glyph in line.glyphs {
+                glyph.x += x_offset;
                 // calculate the top-left corner y value of the glyph and then
                 // move it to the baseline
                 glyph.y = glyph.y * -1.0 + baseline - glyph.height as f32;

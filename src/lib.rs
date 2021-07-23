@@ -1,7 +1,7 @@
 mod layout;
 
 pub use fontdue::Font;
-pub use layout::{GlyphPosition, Layout};
+pub use layout::{GlyphPosition, HorizontalAlign, Layout, LayoutSettings};
 
 use std::{fs::File, io::Read};
 use thiserror::Error;
