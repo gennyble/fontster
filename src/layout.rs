@@ -51,6 +51,12 @@ impl Line {
     }
 }
 
+pub struct StyledText<'a> {
+    pub text: &'a str,
+    pub font_size: f32,
+    pub font_index: usize,
+}
+
 #[derive(Debug, Default)]
 pub struct Layout {
     settings: LayoutSettings,
@@ -65,8 +71,8 @@ impl Layout {
         }
     }
 
-    pub fn append(&mut self, font: &Font, font_size: f32, text: &str) {
-        for ch in text.chars() {
+    pub fn append(&mut self, fonts: &[Font], styled: StyledText) {
+        for ch in styled.text.chars() {
             if ch == '\n' {
                 // Start a new line if we're told to
                 self.lines.push(Line::default());
@@ -76,8 +82,9 @@ impl Layout {
                 continue;
             }
 
-            let metrics = font.metrics(ch, font_size);
-            let line_metrics = font.horizontal_line_metrics(font_size).unwrap();
+            let font = &fonts[styled.font_index];
+            let metrics = font.metrics(ch, styled.font_size);
+            let line_metrics = font.horizontal_line_metrics(styled.font_size).unwrap();
 
             // Our new method assues us we always have at least one line.
             let line = self.lines.last_mut().unwrap();
@@ -88,7 +95,9 @@ impl Layout {
             line.descent = line.descent.min(line_metrics.descent);
 
             let kern = match line.glyphs.last() {
-                Some(last) => font.horizontal_kern(last.c, ch, font_size).unwrap_or(0.0),
+                Some(last) => font
+                    .horizontal_kern(last.c, ch, styled.font_size)
+                    .unwrap_or(0.0),
                 None => 0.0,
             };
 
@@ -100,7 +109,7 @@ impl Layout {
             // which would mess everything up.
             line.glyphs.push(GlyphPosition {
                 c: ch,
-                x: line.width + kern,
+                x: (kern + metrics.xmin as f32 + line.width).max(0.0) as f32,
                 y: metrics.ymin as f32,
                 width: metrics.width,
                 height: metrics.height,
