@@ -1,12 +1,17 @@
+use std::borrow::Borrow;
+
 use fontdue::Font;
 
 #[derive(Debug)]
-pub struct GlyphPosition {
+pub struct GlyphPosition<U: Clone> {
     pub c: char,
     pub x: f32,
     pub y: f32,
     pub width: usize,
     pub height: usize,
+    pub font_index: usize,
+    pub font_size: f32,
+    pub user: U,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -29,8 +34,8 @@ impl Default for HorizontalAlign {
 
 /// A line of text. All glyph positions are relative to the line until
 /// Layout::glyphs
-#[derive(Debug, Default)]
-struct Line {
+#[derive(Debug)]
+struct Line<U: Clone> {
     width: f32,
 
     // A recommended space between the lines.
@@ -41,29 +46,42 @@ struct Line {
     // The lowest a glyph descends below the baseline, typically negative
     descent: f32,
 
-    glyphs: Vec<GlyphPosition>,
+    glyphs: Vec<GlyphPosition<U>>,
 }
 
-impl Line {
+impl<U: Clone> Line<U> {
     /// The height of this line including any gap
     pub fn height(&self) -> f32 {
         self.ascent - self.descent + self.gap
     }
 }
 
-pub struct StyledText<'a> {
+impl<U: Clone> Default for Line<U> {
+    fn default() -> Self {
+        Self {
+            width: 0.0,
+            gap: 0.0,
+            ascent: 0.0,
+            descent: 0.0,
+            glyphs: vec![],
+        }
+    }
+}
+
+pub struct StyledText<'a, U> {
     pub text: &'a str,
     pub font_size: f32,
     pub font_index: usize,
+    pub user: U,
 }
 
 #[derive(Debug, Default)]
-pub struct Layout {
+pub struct Layout<U: Clone> {
     settings: LayoutSettings,
-    lines: Vec<Line>,
+    lines: Vec<Line<U>>,
 }
 
-impl Layout {
+impl<U: Clone> Layout<U> {
     pub fn new(settings: LayoutSettings) -> Self {
         Self {
             settings,
@@ -71,7 +89,7 @@ impl Layout {
         }
     }
 
-    pub fn append(&mut self, fonts: &[Font], styled: StyledText) {
+    pub fn append<F: Borrow<Font>>(&mut self, fonts: &[F], styled: StyledText<U>) {
         for ch in styled.text.chars() {
             if ch == '\n' {
                 // Start a new line if we're told to
@@ -82,7 +100,7 @@ impl Layout {
                 continue;
             }
 
-            let font = &fonts[styled.font_index];
+            let font: &Font = fonts[styled.font_index].borrow();
             let metrics = font.metrics(ch, styled.font_size);
             let line_metrics = font.horizontal_line_metrics(styled.font_size).unwrap();
 
@@ -113,6 +131,9 @@ impl Layout {
                 y: metrics.ymin as f32,
                 width: metrics.width,
                 height: metrics.height,
+                font_index: styled.font_index,
+                font_size: styled.font_size,
+                user: styled.user.clone(),
             });
 
             line.width += metrics.advance_width;
@@ -137,7 +158,7 @@ impl Layout {
         height
     }
 
-    pub fn glyphs(self) -> Vec<GlyphPosition> {
+    pub fn glyphs(self) -> Vec<GlyphPosition<U>> {
         let mut ret = vec![];
         let settings = self.settings;
         let width = self.width();
