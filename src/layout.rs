@@ -17,6 +17,7 @@ pub struct GlyphPosition<U: Clone> {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct LayoutSettings {
     pub horizontal_align: HorizontalAlign,
+    pub line_height: LineHeight,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -29,6 +30,26 @@ pub enum HorizontalAlign {
 impl Default for HorizontalAlign {
     fn default() -> Self {
         HorizontalAlign::Left
+    }
+}
+
+/// The gap between lines
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LineHeight {
+    /// The ascent, descent, and gap between lines are taken form the font file.
+    /// These are the recommended values from the font author.
+    Font,
+    /// Take the ascent and descent from the font file, but multiply them by the
+    /// given ratio.
+    Ratio(f32),
+    /// Determine the ascent and descent by the maxima of the glyphs. The gap acts
+    /// like ['Ratio'](LineHeight::Ratio) and will use the provided `f32`
+    Smallest(f32),
+}
+
+impl Default for LineHeight {
+    fn default() -> Self {
+        LineHeight::Font
     }
 }
 
@@ -90,9 +111,14 @@ impl<U: Clone> Layout<U> {
     }
 
     pub fn append<F: Borrow<Font>>(&mut self, fonts: &[F], styled: StyledText<U>) {
+        let font: &Font = fonts[styled.font_index].borrow();
+        let line_metrics = font.horizontal_line_metrics(styled.font_size).unwrap();
+
         for ch in styled.text.chars() {
+            // Our new method assues us we always have at least one line.
+            let line = self.lines.last_mut().unwrap();
+
             if ch == '\n' {
-                // Start a new line if we're told to
                 self.lines.push(Line::default());
                 continue;
             } else if ch.is_control() {
@@ -100,17 +126,24 @@ impl<U: Clone> Layout<U> {
                 continue;
             }
 
-            let font: &Font = fonts[styled.font_index].borrow();
             let metrics = font.metrics(ch, styled.font_size);
-            let line_metrics = font.horizontal_line_metrics(styled.font_size).unwrap();
 
-            // Our new method assues us we always have at least one line.
-            let line = self.lines.last_mut().unwrap();
+            if let LineHeight::Smallest(_) = self.settings.line_height {
+                line.ascent = line.ascent.max(metrics.height as f32 + metrics.ymin as f32);
+                line.descent = line.descent.min(metrics.ymin as f32);
+            } else {
+                // Set our line metrics to the max of any font used on that line
+                line.ascent = line.ascent.max(line_metrics.ascent);
+                line.descent = line.descent.min(line_metrics.descent);
+            }
 
-            // Set our line metrics to the max of any font used on that line
-            line.gap = line.gap.max(line_metrics.line_gap);
-            line.ascent = line.ascent.max(line_metrics.ascent);
-            line.descent = line.descent.min(line_metrics.descent);
+            line.gap = match self.settings.line_height {
+                LineHeight::Font => line.gap.max(line_metrics.line_gap),
+                LineHeight::Ratio(ratio) | LineHeight::Smallest(ratio) => {
+                    let min = line.ascent + line.descent;
+                    line.gap.max((min * ratio) - min)
+                }
+            };
 
             let kern = match line.glyphs.last() {
                 Some(last) => font
@@ -151,8 +184,16 @@ impl<U: Clone> Layout<U> {
 
     pub fn height(&self) -> f32 {
         let mut height = 0.0;
+        let mut lastheight = 0.0;
+
         for line in &self.lines {
+            if line.glyphs.len() == 0 {
+                height += lastheight;
+                continue;
+            }
+
             height += line.height();
+            lastheight = line.height();
         }
 
         height
@@ -162,16 +203,23 @@ impl<U: Clone> Layout<U> {
         let mut ret = vec![];
         let settings = self.settings;
         let width = self.width();
+        let mut lastheight = 0.0;
 
         let mut baseline = 0.0;
         for line in self.lines {
-            baseline += line.ascent;
-
             let x_offset = match settings.horizontal_align {
                 HorizontalAlign::Left => 0.0,
                 HorizontalAlign::Center => (width - line.width) / 2.0,
                 HorizontalAlign::Right => width - line.width,
             };
+
+            if line.glyphs.len() == 0 {
+                baseline += lastheight;
+                continue;
+            }
+            lastheight = line.height();
+
+            baseline += line.ascent;
 
             for mut glyph in line.glyphs {
                 glyph.x += x_offset;
