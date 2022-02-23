@@ -115,14 +115,14 @@ impl<U: Clone> Layout<U> {
         let line_metrics = font.horizontal_line_metrics(styled.font_size).unwrap();
 
         for ch in styled.text.chars() {
-            // Our new method assues us we always have at least one line.
+            // Our new method assures us we always have at least one line.
             let line = self.lines.last_mut().unwrap();
 
             if ch == '\n' {
                 self.lines.push(Line::default());
                 continue;
             } else if ch.is_control() {
-                // Ignore control characyers
+                // Ignore control characters
                 continue;
             }
 
