@@ -1,8 +1,8 @@
 [package]
 name = "fontster"
 version = "0.1.0"
-authors = ["Brad Alfirevic <brad@genbyte.dev>"]
-edition = "2018"
+authors = ["gennyble <gen@nyble.dev>"]
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
